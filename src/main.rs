@@ -4,11 +4,13 @@ use axum::{
     extract::{ws::WebSocket, WebSocketUpgrade},
     response::IntoResponse,
     routing::get,
-    Router,
+    Extension, Router,
 };
+use std::env;
 use tracing::debug;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::prelude::*;
+use url::Url;
 
 fn initialize_tracing() {
     let fmt_layer = tracing_subscriber::fmt::layer();
@@ -22,11 +24,21 @@ fn initialize_tracing() {
         .init();
 }
 
+#[derive(Clone)]
+struct Args {
+    cwd: Url,
+}
+
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
+    let args = Args {
+        cwd: Url::from_directory_path(&env::current_dir()?).expect("valid url from current dir"),
+    };
+
     let app = Router::new()
+        .layer(Extension(args))
         .route("/", get(|| async { "Hello, world!" }))
         .route(
             "/rust-analyzer-lsp-websocket",
@@ -39,10 +51,15 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+
+    Ok(())
 }
 
-async fn rust_analyzer_lsp_websocket_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_rust_analyzer_lsp_websocket)
+async fn rust_analyzer_lsp_websocket_handler(
+    ws: WebSocketUpgrade,
+    Extension(args): Extension<Args>,
+) -> impl IntoResponse {
+    ws.on_upgrade(|socket| handle_rust_analyzer_lsp_websocket(socket, args))
 }
 
-async fn handle_rust_analyzer_lsp_websocket(mut socket: WebSocket) {}
+async fn handle_rust_analyzer_lsp_websocket(mut socket: WebSocket, args: Args) {}
