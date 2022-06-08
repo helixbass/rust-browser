@@ -1,9 +1,12 @@
+use std::net::SocketAddr;
+
 use axum::{
     extract::{ws::WebSocket, WebSocketUpgrade},
     response::IntoResponse,
     routing::get,
     Router,
 };
+use tracing::debug;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::prelude::*;
 
@@ -30,7 +33,9 @@ async fn main() {
             get(rust_analyzer_lsp_websocket_handler),
         );
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    debug!(?addr, "listening");
+    axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
